@@ -1,11 +1,12 @@
 class Snake {
-    constructor(startX = 10, startY = 10, initialLength = 3, color = 'lime', id = null) {
-        this.id = id; // Can be null for local player initially, or set for remote players
+    constructor(startX = 10, startY = 10, initialLength = 3, color = 'lime', id = null, isAlive = true) {
+        this.id = id;
         this.body = [];
-        this.dx = 1; // Initial direction: right
+        this.dx = 1;
         this.dy = 0;
         this.color = color;
-        this.canChangeDirection = true; // To prevent multiple direction changes in one game tick
+        this.isAlive = isAlive; // Added isAlive property
+        this.canChangeDirection = true;
 
         // Initialize snake body
         for (let i = 0; i < initialLength; i++) {
@@ -16,6 +17,18 @@ class Snake {
         // For remote players, x/y from server is usually head.
         this.x = this.body[0].x; // Head x
         this.y = this.body[0].y; // Head y
+    }
+
+    // Method to update snake state from server data, including isAlive
+    updateFromServer(data) {
+        this.body = data.body || this.body;
+        this.x = data.x || (this.body.length > 0 ? this.body[0].x : 0);
+        this.y = data.y || (this.body.length > 0 ? this.body[0].y : 0);
+        this.color = data.color || this.color;
+        this.isAlive = data.isAlive; // Update isAlive status
+        // dx/dy for remote snakes are less important as server dictates body positions
+        if (this.id !== null && data.dx !== undefined) this.dx = data.dx; // localSnake might use this
+        if (this.id !== null && data.dy !== undefined) this.dy = data.dy; // localSnake might use this
     }
 
     move() {
@@ -100,26 +113,78 @@ class Snake {
     }
 
     // Update method for remote snakes based on server data
-    update(data) {
+    update(data) { // Renamed to 'update' from 'updateFromServer' to match existing call sites for remotePlayers
         this.body = data.body || this.body;
-        this.x = data.x || this.body[0].x; // Head x
-        this.y = data.y || this.body[0].y; // Head y
+        this.x = data.x || (this.body.length > 0 ? this.body[0].x : 0);
+        this.y = data.y || (this.body.length > 0 ? this.body[0].y : 0);
         this.color = data.color || this.color;
-        // Note: dx/dy are not directly updated here for remote snakes,
-        // as their movement is dictated by the server's `gameStateUpdate` body positions.
+        this.isAlive = data.isAlive !== undefined ? data.isAlive : this.isAlive; // Update isAlive status
+        // dx/dy for remote snakes are primarily for local visual interpolation if implemented,
+        // or for local player if server sends back its dx/dy.
+        // For remote players, body array from server is the source of truth for positions.
+        if (data.dx !== undefined) this.dx = data.dx;
+        if (data.dy !== undefined) this.dy = data.dy;
     }
 
     draw(ctx, gridSize) {
-        ctx.fillStyle = this.color;
-        this.body.forEach(segment => {
-            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1); // -1 for grid line effect
+        if (!this.isAlive) {
+            // Draw dead snake differently (e.g., greyed out)
+            ctx.fillStyle = 'grey'; // Or a faded version of this.color
+            this.body.forEach(segment => {
+                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
+            });
+            return; // Stop further drawing for dead snake
+        }
+
+        this.body.forEach((segment, index) => {
+            if (index === 0) {
+                // Head of the snake
+                ctx.fillStyle = 'gold';
+            } else {
+                // Body segments
+                ctx.fillStyle = this.color;
+            }
+            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 1, gridSize - 1);
         });
 
-        // Optionally, draw the head differently or not needed if color is distinct
-        // if (this.body.length > 0) {
-        //     ctx.fillStyle = darkenColor(this.color); // Example: a function to darken the base color
-        //     ctx.fillRect(this.body[0].x * gridSize, this.body[0].y * gridSize, gridSize - 1, gridSize - 1);
-        // }
+        // Draw eyes on the head if alive
+        if (this.body.length > 0) { // No need to check isAlive again, already done
+            const head = this.body[0];
+            const eyeSize = gridSize / 5;
+            const eyeOffset = gridSize / 4;
+
+            ctx.fillStyle = 'white';
+
+            // Default eye positions
+            let eye1X = head.x * gridSize + eyeOffset; // Default for moving right or up/down looking "forward"
+            let eye1Y = head.y * gridSize + eyeOffset;
+            let eye2X = head.x * gridSize + gridSize - eyeOffset - eyeSize; // Default for moving right or up/down looking "forward"
+            let eye2Y = head.y * gridSize + eyeOffset;
+
+
+            // Simplified eye placement: Assume eyes are on top relative to movement direction
+            // More accurate would be to rotate the eye pair based on dx/dy
+            if (this.dx === 1) { // Moving Right
+                eye1X = head.x * gridSize + gridSize - eyeOffset - eyeSize; eye1Y = head.y * gridSize + eyeOffset;
+                eye2X = head.x * gridSize + gridSize - eyeOffset - eyeSize; eye2Y = head.y * gridSize + gridSize - eyeOffset - eyeSize;
+            } else if (this.dx === -1) { // Moving Left
+                eye1X = head.x * gridSize + eyeOffset; eye1Y = head.y * gridSize + eyeOffset;
+                eye2X = head.x * gridSize + eyeOffset; eye2Y = head.y * gridSize + gridSize - eyeOffset - eyeSize;
+            } else if (this.dy === -1) { // Moving Up
+                eye1X = head.x * gridSize + eyeOffset; eye1Y = head.y * gridSize + eyeOffset;
+                eye2X = head.x * gridSize + gridSize - eyeOffset - eyeSize; eye2Y = head.y * gridSize + eyeOffset;
+            } else if (this.dy === 1) { // Moving Down
+                eye1X = head.x * gridSize + eyeOffset; eye1Y = head.y * gridSize + gridSize - eyeOffset - eyeSize;
+                eye2X = head.x * gridSize + gridSize - eyeOffset - eyeSize; eye2Y = head.y * gridSize + gridSize - eyeOffset - eyeSize;
+            }
+
+            ctx.beginPath();
+            ctx.arc(eye1X + eyeSize / 2, eye1Y + eyeSize / 2, eyeSize / 2, 0, Math.PI * 2, true);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(eye2X + eyeSize / 2, eye2Y + eyeSize / 2, eyeSize / 2, 0, Math.PI * 2, true);
+            ctx.fill();
+        }
     }
 }
 

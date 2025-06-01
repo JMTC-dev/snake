@@ -33,8 +33,14 @@ class Food {
 
     draw(ctx, gridSize) {
         ctx.fillStyle = 'red'; // Food color
-        // -1 for grid line effect, similar to snake
-        ctx.fillRect(this.x * gridSize, this.y * gridSize, gridSize - 1, gridSize - 1);
+
+        const centerX = this.x * gridSize + gridSize / 2;
+        const centerY = this.y * gridSize + gridSize / 2;
+        const radius = (gridSize / 2) - (gridSize * 0.1); // Radius with small padding
+
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true); // Draw a full circle
+        ctx.fill();
     }
 }
 

@@ -7,7 +7,22 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="lobbyContainer">
+        <h1>Battlesnakes Lobby</h1>
+        <h2>Players:</h2>
+        <ul id="playerList">
+            <!-- Player items will be added by JavaScript -->
+        </ul>
+        <p>Mode: <span id="currentModeDisplay">Competitive</span></p>
+        <button id="changeModeButton">Change Game Mode</button>
+        <button id="readyButton">Toggle Ready</button>
+    </div>
+
+    <div id="gameInfoDisplay" class="hidden">
+        <div id="teamScoreDisplay" class="hidden">Team Score: <span id="teamScoreValue">0</span></div>
+        <!-- Other game info can go here, like individual score for competitive -->
+    </div>
+    <canvas id="gameCanvas"></canvas> <!-- Initially hidden by CSS or JS -->
 
     <!-- Socket.IO Client Library -->
     <script src="/socket.io/socket.io.js"></script>
